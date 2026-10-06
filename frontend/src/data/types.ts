@@ -17,6 +17,8 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  /** 状态流转图：key 为当前状态，value 为该状态允许前往的状态；缺省时沿用动作目标的旧逻辑。 */
+  transitions?: Record<string, string[]>
   metrics: string[]
 }
 

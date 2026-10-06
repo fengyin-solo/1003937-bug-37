@@ -2,7 +2,8 @@ import { SEED_ROWS } from './seed'
 import type { EntryRow } from './types'
 
 // 本地持久化：数据放在 localStorage 里，刷新、关掉再打开都还在。
-const STORAGE_KEY = 'geohazard-monitor-prevention:entries'
+// v2：承建单位/治理工程台账重做了关联，旧版示例数据作废，重新播种。
+const STORAGE_KEY = 'geohazard-monitor-prevention:entries:v2'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -41,11 +42,21 @@ export function listRows(key: string): EntryRow[] {
 }
 
 export function saveRows(key: string, rows: EntryRow[]): void {
-  const next = { ...allRows(), [key]: rows }
-  cache = next
+  commitTables({ [key]: rows })
+}
+
+/**
+ * 多张表一次性提交：先在内存组好整份数据再写 localStorage，
+ * 序列化或落盘抛错时缓存仍是旧值，单位、项目两张表一起保持原状态，不会出现半截写入。
+ */
+export function commitTables(patch: Record<string, EntryRow[]>): void {
+  const next = { ...allRows(), ...patch }
+  const serialized = JSON.stringify(next)
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    // setItem 可能因配额等原因抛错：先序列化成功再写，且只在落盘成功后切换缓存。
+    window.localStorage.setItem(STORAGE_KEY, serialized)
   }
+  cache = next
 }
 
 export function resetRows(key: string): EntryRow[] {
