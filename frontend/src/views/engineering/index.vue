@@ -33,6 +33,45 @@
       <button class="btn ghost" type="button" @click="resetFilters">重置条件</button>
     </form>
 
+    <form v-if="showCreate" class="create-panel" @submit.prevent="submitCreate">
+      <label class="filter-item">
+        <span>隐患点编号</span>
+        <input v-model="createForm.隐患点编号" placeholder="如 HAZA-0004" required />
+      </label>
+      <label class="filter-item">
+        <span>治理方案</span>
+        <input v-model="createForm.治理方案" placeholder="如 抗滑桩+截排水" required />
+      </label>
+      <label class="filter-item">
+        <span>承建方</span>
+        <select v-model="createForm.承建方" required>
+          <option value="" disabled>请选择承建单位</option>
+          <option
+            v-for="item in contractorOptions"
+            :key="String(item.id)"
+            :value="String(item.单位名称)"
+            :disabled="item.承接状态 !== '可承接'"
+          >
+            {{ item.单位名称 }}（{{ item.承接状态 }}）
+          </option>
+        </select>
+      </label>
+      <label class="filter-item">
+        <span>合同金额（万元）</span>
+        <input v-model="createForm.合同金额" type="number" min="0" step="0.01" />
+      </label>
+      <label class="filter-item">
+        <span>开工日期</span>
+        <input v-model="createForm.开工日期" type="date" />
+      </label>
+      <label class="filter-item">
+        <span>计划工期</span>
+        <input v-model="createForm.计划工期" placeholder="如 180天" />
+      </label>
+      <button class="btn primary" type="submit">提交登记</button>
+      <button class="btn ghost" type="button" @click="showCreate = false">取消</button>
+    </form>
+
     <table class="data-table">
       <thead>
         <tr>
@@ -66,6 +105,7 @@
     <footer class="page-foot">
       <span>共 {{ total }} 条治理工程记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+      <span v-if="noticeMessage" class="notice-text">{{ noticeMessage }}</span>
     </footer>
   </section>
 </template>
@@ -74,24 +114,41 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  createEngineeringProject,
   downloadEntries,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { EntryRow, NewEngineeringProject } from '@/data/types'
 
 const meta = moduleMeta('engineering')
 const columns = ["项目编号", "隐患点编号", "治理方案", "承建方", "合同金额", "开工日期", "计划工期", "项目状态"]
 const actions = ["启动招标", "开工确认", "申请验收"]
 const statuses = ["待立项", "招标中", "施工中", "已竣工", "待验收"]
-const stats = [{"label": "项目总数", "value": 0}, {"label": "施工中数", "value": 0}, {"label": "待验收数", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const showCreate = ref(false)
+const contractorOptions = ref<EntryRow[]>([])
+const emptyForm = (): NewEngineeringProject => ({
+  隐患点编号: '',
+  治理方案: '',
+  承建方: '',
+  合同金额: '',
+  开工日期: '',
+  计划工期: '',
+})
+const createForm = ref<NewEngineeringProject>(emptyForm())
+const stats = computed(() => [
+  { label: '项目总数', value: total.value },
+  { label: '施工中数', value: rows.value.filter((row) => row.status === '施工中').length },
+  { label: '待验收数', value: rows.value.filter((row) => row.status === '待验收').length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -109,21 +166,41 @@ function exportRows() {
 }
 
 function openCreate() {
-  errorMessage.value = '治理工程项目登记入口尚未接入审批流'
+  errorMessage.value = ''
+  noticeMessage.value = ''
+  showCreate.value = !showCreate.value
+  if (showCreate.value) {
+    contractorOptions.value = listEntries('contract').items
+  }
+}
+
+function submitCreate() {
+  errorMessage.value = ''
+  noticeMessage.value = ''
+  const result = createEngineeringProject(createForm.value)
+  if (!result.ok) {
+    errorMessage.value = result.message
+    return
+  }
+  noticeMessage.value = result.message
+  showCreate.value = false
+  createForm.value = emptyForm()
+  reload()
 }
 
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
+  noticeMessage.value = ''
   const result = applyAction(meta.key, Number(row.id), action)
   if (!result.ok) {
     errorMessage.value = result.message
     return
   }
+  noticeMessage.value = result.message
   reload()
 }
 
 function reload() {
-  errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items

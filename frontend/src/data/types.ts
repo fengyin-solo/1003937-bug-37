@@ -32,6 +32,15 @@ export type ActionResult = {
   message: string
 }
 
+export type NewEngineeringProject = {
+  隐患点编号: string
+  治理方案: string
+  承建方: string
+  合同金额: string
+  开工日期: string
+  计划工期: string
+}
+
 export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]

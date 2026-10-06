@@ -68,4 +68,7 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 承建单位状态只能沿 正常 → 暂停合作 → 资质过期 → 列入黑名单 逐级推进；「恢复正常」会重新校验
+  资质有效期，校验不过保持原状态；重复暂停/恢复只留首次结果。状态非「正常」的单位不能登记新治理
+  工程项目，历史项目保留原承建方；项目行与单位「承建项目数」一起写入，任何一步失败两边都保持原状态。
 - 想回到初始数据：清掉浏览器里 `geohazard-monitor-prevention:entries` 这一项，或调用 `resetModule(模块)`。

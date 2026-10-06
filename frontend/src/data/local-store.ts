@@ -41,11 +41,17 @@ export function listRows(key: string): EntryRow[] {
 }
 
 export function saveRows(key: string, rows: EntryRow[]): void {
-  const next = { ...allRows(), [key]: rows }
-  cache = next
+  saveModules({ [key]: rows })
+}
+
+// 多模块一起写：先持久化成功再换内存缓存，任何一步失败所有模块都保持原状态。
+export function saveModules(batch: Record<string, EntryRow[]>): void {
+  const previous = allRows()
+  const next = { ...previous, ...batch }
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
   }
+  cache = next
 }
 
 export function resetRows(key: string): EntryRow[] {

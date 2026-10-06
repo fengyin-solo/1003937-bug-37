@@ -47,7 +47,7 @@
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
-              v-for="action in actions"
+              v-for="action in rowActions(row)"
               :key="action"
               class="link"
               type="button"
@@ -55,6 +55,7 @@
             >
               {{ action }}
             </button>
+            <span v-if="!rowActions(row).length" class="muted-text">无可执行动作</span>
           </td>
         </tr>
         <tr v-if="!rows.length">
@@ -66,6 +67,7 @@
     <footer class="page-foot">
       <span>共 {{ total }} 条承建单位记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
+      <span v-if="noticeMessage" class="notice-text">{{ noticeMessage }}</span>
     </footer>
   </section>
 </template>
@@ -74,6 +76,7 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  availableActions,
   downloadEntries,
   listEntries,
   moduleMeta,
@@ -82,22 +85,30 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('contract')
-const columns = ["单位编号", "单位名称", "资质等级", "联系人", "联系电话", "承建项目数", "注册日期", "单位状态"]
-const actions = ["暂停合作", "列入黑名单", "恢复正常"]
-const statuses = ["正常", "暂停合作", "列入黑名单", "资质过期", "已注销"]
-const stats = [{"label": "单位总数", "value": 0}, {"label": "正常合作数", "value": 0}, {"label": "黑名单数", "value": 0}]
+const columns = ["单位编号", "单位名称", "资质等级", "资质有效期", "联系人", "联系电话", "承建项目数", "注册日期", "单位状态", "承接状态"]
+const statuses = ["正常", "暂停合作", "资质过期", "列入黑名单", "已注销"]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const stats = computed(() => [
+  { label: '单位总数', value: total.value },
+  { label: '正常合作数', value: rows.value.filter((row) => row.status === '正常').length },
+  { label: '黑名单数', value: rows.value.filter((row) => row.status === '列入黑名单').length },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+function rowActions(row: EntryRow): string[] {
+  return availableActions(meta.key, row)
+}
 
 function resetFilters() {
   filters.value = {}
@@ -109,21 +120,23 @@ function exportRows() {
 }
 
 function openCreate() {
-  errorMessage.value = '承建单位登记入口尚未接入审批流'
+  errorMessage.value = ''
+  noticeMessage.value = '承建单位登记入口尚未接入审批流'
 }
 
 function runAction(action: string, row: EntryRow) {
   errorMessage.value = ''
+  noticeMessage.value = ''
   const result = applyAction(meta.key, Number(row.id), action)
   if (!result.ok) {
     errorMessage.value = result.message
     return
   }
+  noticeMessage.value = result.message
   reload()
 }
 
 function reload() {
-  errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
